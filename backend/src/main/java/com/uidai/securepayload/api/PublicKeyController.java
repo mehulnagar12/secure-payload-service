@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/keys")
 @CrossOrigin(origins = "http://localhost:5173")
+/**
+ * REST controller that exposes the sandbox encryption public key.
+ */
 public class PublicKeyController {
     private static final String MOCK_PUBLIC_KEY = """
             -----BEGIN PUBLIC KEY-----
@@ -22,6 +25,11 @@ public class PublicKeyController {
             """;
 
     @GetMapping("/public")
+    /**
+     * Returns the public key used by sandbox clients to encrypt payloads.
+     *
+     * @return public-key response containing PEM material and algorithm metadata
+     */
     public PublicKeyResponse publicKey() {
         return new PublicKeyResponse(MOCK_PUBLIC_KEY, "RSA-OAEP-SHA-256-MGF1-SHA-256");
     }

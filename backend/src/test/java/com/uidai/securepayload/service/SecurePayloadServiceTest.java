@@ -16,12 +16,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for secure payload orchestration and identity validation.
+ */
 class SecurePayloadServiceTest {
     private final PayloadDecryptor decryptor = mock(PayloadDecryptor.class);
     private final SecurePayloadEventPublisher publisher = mock(SecurePayloadEventPublisher.class);
     private final SecurePayloadService service = new SecurePayloadService(decryptor, publisher, new ObjectMapper());
 
     @Test
+    /**
+     * Verifies that a valid identity is published with a generated transaction ID.
+     */
     void publishesVerifiedIdentityWithTransactionId() {
         when(decryptor.decrypt("ciphertext")).thenReturn("{\"name\":\"Ada\"}");
 
@@ -32,6 +38,9 @@ class SecurePayloadServiceTest {
     }
 
     @Test
+    /**
+     * Verifies that malformed decrypted JSON is rejected before publication.
+     */
     void rejectsMalformedDecryptedJsonBeforePublishing() {
         when(decryptor.decrypt("ciphertext")).thenReturn("not-json");
 

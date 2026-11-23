@@ -15,6 +15,9 @@ import java.util.Base64;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Unit tests for RSA-OAEP decryption compatibility and validation.
+ */
 class RsaPayloadDecryptorTest {
     private static final String MOCK_PUBLIC_KEY = """
             -----BEGIN PUBLIC KEY-----
@@ -29,6 +32,11 @@ class RsaPayloadDecryptorTest {
             """;
 
     @Test
+    /**
+     * Verifies that the configured OAEP parameters decrypt a matching ciphertext.
+     *
+     * @throws Exception if test key setup or encryption fails
+     */
     void decryptsRsaOaepSha256Payload() throws Exception {
         String plaintext = "{\"name\":\"Ada\",\"country\":\"IN\"}";
         Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
@@ -40,11 +48,20 @@ class RsaPayloadDecryptorTest {
     }
 
     @Test
+    /**
+     * Verifies that malformed Base64 is translated to the domain exception.
+     */
     void rejectsMalformedCiphertext() {
         assertThatThrownBy(() -> new RsaPayloadDecryptor().decrypt("not-base64"))
                 .isInstanceOf(PayloadDecryptionException.class);
     }
 
+    /**
+     * Builds the public key used to encrypt the test fixture.
+     *
+     * @return parsed RSA public key
+     * @throws Exception if the fixture cannot be parsed
+     */
     private PublicKey publicKey() throws Exception {
         byte[] der = Base64.getMimeDecoder().decode(MOCK_PUBLIC_KEY
                 .replace("-----BEGIN PUBLIC KEY-----", "")
