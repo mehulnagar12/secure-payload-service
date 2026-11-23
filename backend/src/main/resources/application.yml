@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: secure-payload-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+secure-payload:
+  topic: ${SECURE_PAYLOAD_TOPIC:secure-payload-events}
+  max-ciphertext-bytes: 256
+  kafka-send-timeout: 5s
