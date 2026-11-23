@@ -17,5 +17,4 @@ server:
 
 secure-payload:
   topic: ${SECURE_PAYLOAD_TOPIC:secure-payload-events}
-  max-ciphertext-bytes: 256
   kafka-send-timeout: 5s
