@@ -43,12 +43,12 @@ Request body:
 
 ```json
 {
-  "encrypted_data": "<Base64 RSA-OAEP ciphertext>",
+  "encrypted_data": "<JSON hybrid encryption envelope>",
   "partner_id": "sandbox-partner-001"
 }
 ```
 
-The ciphertext must be a 2048-bit RSA ciphertext encrypted with RSA-OAEP using SHA-256 for both the OAEP digest and MGF1 digest. The decrypted value must be a non-empty JSON object.
+The encrypted value is a versioned hybrid envelope. It uses RSA-OAEP with SHA-256 for both the OAEP digest and MGF1 digest to wrap a random AES-256-GCM data key. The decrypted value must be a non-empty JSON object.
 
 ### Success response
 
@@ -83,7 +83,7 @@ All errors use this response structure:
 | `400 Bad Request` | `INVALID_REQUEST` | Missing or blank `encrypted_data` or `partner_id` | Field-specific validation message |
 | `400 Bad Request` | `MALFORMED_REQUEST` | Request body is not valid JSON | `Request body must be valid JSON` |
 | `400 Bad Request` | `INVALID_CIPHERTEXT_BASE64` | `encrypted_data` is not valid Base64 | `Encrypted payload is not valid Base64` |
-| `400 Bad Request` | `INVALID_CIPHERTEXT_SIZE` | Ciphertext is not exactly 256 bytes for the mock RSA-2048 key | `Encrypted payload has an invalid RSA ciphertext size` |
+| `400 Bad Request` | `INVALID_ENCRYPTION_ENVELOPE` | Envelope is malformed or uses an unsupported version/key | `Encrypted payload is not a valid encryption envelope` |
 | `400 Bad Request` | `DECRYPTION_FAILED` | Ciphertext cannot be decrypted, is tampered with, or uses the wrong key | `Encrypted payload could not be decrypted` |
 | `400 Bad Request` | `MALFORMED_DECRYPTED_JSON` | Decrypted content is malformed JSON | `Decrypted payload is not valid JSON` |
 | `400 Bad Request` | `INVALID_IDENTITY_PAYLOAD` | Decrypted JSON is empty, scalar, or an array instead of an object | `Decrypted identity must be a non-empty JSON object` |
@@ -94,7 +94,9 @@ The API deliberately avoids returning cryptographic exception details, private-k
 
 ### Rate limiting
 
-`POST /api/v1/sandbox/secure-payload` is protected by a custom fixed-window limiter. Each `partner_id` may make at most 10 requests during one UTC epoch-second. The filter reads only `partner_id`, increments the distributed-cache counter, and rejects the request before the controller, decryption, or Kafka logic runs.
+`POST /api/v1/sandbox/secure-payload` is protected by a custom token-bucket limiter. Each `partner_id` has a capacity of 10 tokens with a refill rate of 10 tokens per second. The filter reads only a bounded request body, consumes a token atomically through the cache abstraction, and rejects the request before the controller, decryption, or Kafka logic runs.
+
+The public-key endpoint returns the active `key_id` and the hybrid algorithm identifier. The frontend includes the key identifier in the envelope so the backend can reject stale or mismatched keys.
 
 Requests over the limit return `429 Too Many Requests` with a `Retry-After: 1` header and this error code:
 
@@ -106,7 +108,7 @@ Requests over the limit return `429 Too Many Requests` with a `Retry-After: 1` h
 }
 ```
 
-Successful requests include an `X-RateLimit-Remaining` response header. The exercise uses `MockDistributedRateLimitCache`; it is intentionally an adapter seam, not a production multi-pod cache. Counter initialization uses atomic `setIfAbsent` so concurrent increments cannot reset the counter. Replace it with a Redis-backed implementation whose `increment` and `setIfAbsent` operations are atomic across replicas.
+Successful requests include an `X-RateLimit-Remaining` response header. The exercise uses `MockDistributedRateLimitCache`; it is intentionally an adapter seam, not a production multi-pod cache. Replace it with a Redis-backed implementation whose token consume operation is atomic across replicas, normally using a Lua script.
 
 ### Kafka event shape
 
@@ -129,7 +131,7 @@ Example event published to `secure-payload-events`:
 
 Kafka uses `partner_id` as the message key. The API returns success only after Kafka acknowledges publication.
 
-The RSA keypair is intentionally hardcoded for this exercise only. Production deployments must load private key material from a secrets manager or HSM.
+Local development loads the mock private key from a classpath resource. Production deployments must set `SECURE_PAYLOAD_PRIVATE_KEY_RESOURCE` to a secrets-manager, mounted-file, or HSM-backed provider and must not use the mock key.
 
 ## Tests
 

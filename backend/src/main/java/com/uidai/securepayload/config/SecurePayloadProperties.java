@@ -10,10 +10,13 @@ import java.time.Duration;
  *
  * @param topic Kafka topic used for verified events
  * @param kafkaSendTimeout maximum time to wait for Kafka acknowledgement
+ * @param keyId identifier advertised to clients for the active encryption key
  */
 public record SecurePayloadProperties(
         String topic,
-        Duration kafkaSendTimeout
+        Duration kafkaSendTimeout,
+        String privateKeyResource,
+        String keyId
 ) {
     /**
      * Applies safe defaults when configuration values are absent or invalid.
@@ -24,5 +27,8 @@ public record SecurePayloadProperties(
     public SecurePayloadProperties {
         topic = topic == null || topic.isBlank() ? "secure-payload-events" : topic;
         kafkaSendTimeout = kafkaSendTimeout == null ? Duration.ofSeconds(5) : kafkaSendTimeout;
+        privateKeyResource = privateKeyResource == null || privateKeyResource.isBlank()
+                ? "classpath:mock-private-key.der.b64" : privateKeyResource;
+        keyId = keyId == null || keyId.isBlank() ? "sandbox-rsa-2026-01" : keyId;
     }
 }

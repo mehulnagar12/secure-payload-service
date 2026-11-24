@@ -10,6 +10,8 @@ spring:
       retries: 3
       properties:
         enable.idempotence: true
+        delivery.timeout.ms: 5000
+        request.timeout.ms: 3000
         spring.json.add.type.headers: false
 
 server:
@@ -18,3 +20,5 @@ server:
 secure-payload:
   topic: ${SECURE_PAYLOAD_TOPIC:secure-payload-events}
   kafka-send-timeout: 5s
+  private-key-resource: ${SECURE_PAYLOAD_PRIVATE_KEY_RESOURCE:classpath:mock-private-key.der.b64}
+  key-id: ${SECURE_PAYLOAD_KEY_ID:sandbox-rsa-2026-01}

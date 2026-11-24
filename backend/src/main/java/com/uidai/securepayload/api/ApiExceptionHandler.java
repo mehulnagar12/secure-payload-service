@@ -111,7 +111,7 @@ public class ApiExceptionHandler {
         if (exception instanceof PayloadDecryptionException decryption) {
             return switch (decryption.reason()) {
                 case INVALID_BASE64 -> "INVALID_CIPHERTEXT_BASE64";
-                case INVALID_CIPHERTEXT_SIZE -> "INVALID_CIPHERTEXT_SIZE";
+                case INVALID_ENVELOPE -> "INVALID_ENCRYPTION_ENVELOPE";
                 case DECRYPTION_FAILED -> "DECRYPTION_FAILED";
             };
         }

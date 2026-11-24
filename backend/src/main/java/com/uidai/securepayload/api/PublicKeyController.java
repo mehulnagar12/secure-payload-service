@@ -1,5 +1,6 @@
 package com.uidai.securepayload.api;
 
+import com.uidai.securepayload.config.SecurePayloadProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * REST controller that exposes the sandbox encryption public key.
  */
 public class PublicKeyController {
+    private final SecurePayloadProperties properties;
     private static final String MOCK_PUBLIC_KEY = """
             -----BEGIN PUBLIC KEY-----
             MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtwsLHJkgHMzFihzDDxMY
@@ -24,6 +26,10 @@ public class PublicKeyController {
             -----END PUBLIC KEY-----
             """;
 
+    public PublicKeyController(SecurePayloadProperties properties) {
+        this.properties = properties;
+    }
+
     @GetMapping("/public")
     /**
      * Returns the public key used by sandbox clients to encrypt payloads.
@@ -31,6 +37,7 @@ public class PublicKeyController {
      * @return public-key response containing PEM material and algorithm metadata
      */
     public PublicKeyResponse publicKey() {
-        return new PublicKeyResponse(MOCK_PUBLIC_KEY, "RSA-OAEP-SHA-256-MGF1-SHA-256");
+        return new PublicKeyResponse(MOCK_PUBLIC_KEY,
+                "RSA-OAEP-SHA-256-MGF1-SHA-256+AES-256-GCM", properties.keyId());
     }
 }

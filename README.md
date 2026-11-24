@@ -10,7 +10,7 @@ The frontend collects mock identity data:
 - Mock Aadhaar number
 - Device ID
 
-The data is encrypted in the browser with an RSA public key before it is sent to the backend. The backend decrypts the payload with its private key, validates the decrypted JSON, creates a transaction ID, and publishes a verified `Secure_Payload_Received` event to Kafka.
+The data is encrypted in the browser with AES-256-GCM, while the AES key is wrapped with the backend's RSA public key before it is sent to the backend. The backend decrypts the envelope with its private key, validates the decrypted JSON, creates a transaction ID, and publishes a verified `Secure_Payload_Received` event to Kafka.
 
 This is a sandbox exercise. Do not enter real Aadhaar or other production identity data.
 
@@ -27,14 +27,14 @@ The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8
 
 ### Distributed partner rate limiting
 
-The secure-payload endpoint is protected by a custom fixed-window rate limiter implemented from scratch.
+The secure-payload endpoint is protected by a custom token-bucket rate limiter implemented from scratch.
 
 - Maximum of 10 requests per second per `partner_id`.
 - A servlet filter checks the partner before controller execution and RSA decryption.
 - Requests above the limit immediately return `429 Too Many Requests`.
 - The cache key contains a SHA-256 hash of the partner ID rather than the raw identifier.
-- The cache is abstracted behind `DistributedRateLimitCache` with `get`, `set`, and atomic `increment` operations.
-- `MockDistributedRateLimitCache` is provided for the exercise; its counter initialization uses atomic `setIfAbsent` to avoid concurrent reset races. Production Kubernetes deployments should replace it with a Redis-backed adapter shared by all replicas, with atomic `increment` and `setIfAbsent` operations.
+- The cache is abstracted behind `DistributedRateLimitCache` with one atomic token-consumption operation.
+- `MockDistributedRateLimitCache` is provided for the exercise. Production Kubernetes deployments should replace it with a Redis-backed adapter shared by all replicas.
 
 ### Kafka delivery reliability
 
@@ -53,7 +53,7 @@ If Kafka publication cannot be confirmed, the API returns `503 Service Unavailab
 - The rate limiter runs before RSA decryption.
 - Ciphertext must be the expected 256-byte RSA-2048 size.
 - Invalid Base64 and invalid ciphertext are rejected before expensive processing continues.
-- The frontend performs encryption in a Web Worker so RSA encryption does not block the browser UI thread.
+- The frontend performs hybrid encryption in a Web Worker so encryption does not block the browser UI thread.
 - The backend exposes only the public key; the private key remains server-side.
 
 ### Validation and failure isolation
@@ -201,7 +201,7 @@ All normal API errors use the following structure:
 | `400` | `INVALID_REQUEST` | Missing or blank `encrypted_data` or `partner_id` |
 | `400` | `MALFORMED_REQUEST` | Request body is not valid JSON |
 | `400` | `INVALID_CIPHERTEXT_BASE64` | Invalid Base64 ciphertext |
-| `400` | `INVALID_CIPHERTEXT_SIZE` | Ciphertext is not 256 bytes for the mock RSA-2048 key |
+| `400` | `INVALID_ENCRYPTION_ENVELOPE` | Encryption envelope is malformed or uses an unsupported key/version |
 | `400` | `DECRYPTION_FAILED` | Decryption fails, payload is tampered with, or the wrong key is used |
 | `400` | `MALFORMED_DECRYPTED_JSON` | Decrypted content is invalid JSON |
 | `400` | `INVALID_IDENTITY_PAYLOAD` | Decrypted JSON is empty, scalar, or an array |

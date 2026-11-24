@@ -1,6 +1,7 @@
 export type PublicKeyResponse = {
   public_key: string
   algorithm: string
+  key_id: string
 }
 
 export type SecurePayloadResponse = {
@@ -28,6 +29,18 @@ export class ApiRequestError extends Error {
 }
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const REQUEST_TIMEOUT_MS = 10000
+
+const fetchWithTimeout = (url: string, init: RequestInit): Promise<Response> => {
+  const timeout = new AbortController()
+  const timer = window.setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS)
+  const signal = init.signal
+  if (signal) {
+    if (signal.aborted) timeout.abort()
+    else signal.addEventListener('abort', () => timeout.abort(), { once: true })
+  }
+  return fetch(url, { ...init, signal: timeout.signal }).finally(() => window.clearTimeout(timer))
+}
 
 const readResponse = async <T>(response: Response): Promise<T> => {
   const body = (await response.json().catch(() => ({}))) as ApiError
@@ -42,7 +55,7 @@ const readResponse = async <T>(response: Response): Promise<T> => {
 }
 
 export const fetchPublicKey = async (signal: AbortSignal): Promise<PublicKeyResponse> => {
-  const response = await fetch(`${apiBaseUrl}/api/v1/keys/public`, { signal })
+  const response = await fetchWithTimeout(`${apiBaseUrl}/api/v1/keys/public`, { signal })
   return readResponse<PublicKeyResponse>(response)
 }
 
@@ -51,7 +64,7 @@ export const submitSecurePayload = async (
   partnerId: string,
   signal: AbortSignal,
 ): Promise<SecurePayloadResponse> => {
-  const response = await fetch(`${apiBaseUrl}/api/v1/sandbox/secure-payload`, {
+  const response = await fetchWithTimeout(`${apiBaseUrl}/api/v1/sandbox/secure-payload`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ encrypted_data: encryptedData, partner_id: partnerId }),

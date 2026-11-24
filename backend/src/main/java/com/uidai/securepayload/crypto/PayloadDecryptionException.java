@@ -5,7 +5,7 @@ package com.uidai.securepayload.crypto;
  */
 public class PayloadDecryptionException extends RuntimeException {
     /** Category of cryptographic failure exposed to the API error mapper. */
-    public enum Reason { INVALID_BASE64, INVALID_CIPHERTEXT_SIZE, DECRYPTION_FAILED }
+    public enum Reason { INVALID_BASE64, INVALID_ENVELOPE, DECRYPTION_FAILED }
 
     private final Reason reason;
     /**

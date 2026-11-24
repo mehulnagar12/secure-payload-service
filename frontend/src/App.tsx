@@ -35,11 +35,6 @@ const reducer = (state: State, action: Action): State => {
 const isBusy = (status: Status) => ['loading-key', 'encrypting', 'submitting', 'rate-testing'].includes(status)
 const RATE_LIMIT_TEST_REQUESTS = 20
 
-const waitForNextSecond = () => new Promise<void>((resolve) => {
-  const delay = 1000 - (Date.now() % 1000) + 25
-  window.setTimeout(resolve, delay)
-})
-
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const workerRef = useRef<Worker | null>(null)
@@ -66,14 +61,23 @@ export default function App() {
       dispatch({ type: 'error', message: 'Name, mock Aadhaar number, and device ID are required.' })
       return
     }
+    if (!/^\d{12}$/.test(state.form.aadhaarNumber.replace(/\s/g, ''))) {
+      dispatch({ type: 'error', message: 'Mock Aadhaar number must contain 12 digits.' })
+      return
+    }
 
     const controller = new AbortController()
     try {
       dispatch({ type: 'status', status: 'loading-key' })
       const keyResponse = await fetchPublicKey(controller.signal)
+      if (keyResponse.algorithm !== 'RSA-OAEP-SHA-256-MGF1-SHA-256+AES-256-GCM') throw new Error('The backend returned an unsupported encryption algorithm.')
       dispatch({ type: 'status', status: 'encrypting' })
       const plaintext = JSON.stringify({ name: state.form.name.trim(), aadhaar_number: state.form.aadhaarNumber.trim(), device_id: state.form.deviceId.trim() })
-      const encryptedData = await encryptInWorker(keyResponse.public_key, plaintext)
+      const encryptedData = await encryptInWorker(keyResponse.public_key, JSON.stringify({
+        version: 'v1',
+        key_id: keyResponse.key_id,
+        plaintext,
+      }))
       dispatch({ type: 'status', status: 'submitting' })
       const response = await submitSecurePayload(encryptedData, 'sandbox-frontend', controller.signal)
       dispatch({ type: 'success', transactionId: response.transaction_id })
@@ -89,19 +93,27 @@ export default function App() {
       dispatch({ type: 'error', message: 'Fill in all form fields before testing the rate limiter.' })
       return
     }
+    if (!/^\d{12}$/.test(state.form.aadhaarNumber.replace(/\s/g, ''))) {
+      dispatch({ type: 'error', message: 'Mock Aadhaar number must contain 12 digits.' })
+      return
+    }
 
     const controller = new AbortController()
     try {
       dispatch({ type: 'status', status: 'rate-testing' })
       const keyResponse = await fetchPublicKey(controller.signal)
+      if (keyResponse.algorithm !== 'RSA-OAEP-SHA-256-MGF1-SHA-256+AES-256-GCM') throw new Error('The backend returned an unsupported encryption algorithm.')
       const plaintext = JSON.stringify({
         name: state.form.name.trim(),
         aadhaar_number: state.form.aadhaarNumber.trim(),
         device_id: state.form.deviceId.trim(),
       })
-      const encryptedData = await encryptInWorker(keyResponse.public_key, plaintext)
+      const encryptedData = await encryptInWorker(keyResponse.public_key, JSON.stringify({
+        version: 'v1',
+        key_id: keyResponse.key_id,
+        plaintext,
+      }))
       const partnerId = `rate-limit-test-${Date.now()}`
-      await waitForNextSecond()
       const attempts = await Promise.all(Array.from({ length: RATE_LIMIT_TEST_REQUESTS }, () =>
         submitSecurePayload(encryptedData, partnerId, controller.signal)
           .then(() => ({ status: 202 }))
@@ -130,9 +142,9 @@ export default function App() {
       <h1>Secure payload submission</h1>
       <p className="intro">Your mock identity data is encrypted in a Web Worker before it leaves the browser.</p>
       <form onSubmit={submit} noValidate>
-        <label>Name<input value={state.form.name} onChange={(e) => dispatch({ type: 'field', field: 'name', value: e.target.value })} placeholder="Ada Lovelace" autoComplete="name" disabled={isBusy(state.status)} /></label>
-        <label>Mock Aadhaar Number<input value={state.form.aadhaarNumber} onChange={(e) => dispatch({ type: 'field', field: 'aadhaarNumber', value: e.target.value })} placeholder="0000 0000 0000" inputMode="numeric" disabled={isBusy(state.status)} /></label>
-        <label>Device ID<input value={state.form.deviceId} onChange={(e) => dispatch({ type: 'field', field: 'deviceId', value: e.target.value })} placeholder="device-sandbox-001" disabled={isBusy(state.status)} /></label>
+        <label>Name<input value={state.form.name} maxLength={100} onChange={(e) => dispatch({ type: 'field', field: 'name', value: e.target.value })} placeholder="Ada Lovelace" autoComplete="off" disabled={isBusy(state.status)} /></label>
+        <label>Mock Aadhaar Number<input value={state.form.aadhaarNumber} maxLength={14} onChange={(e) => dispatch({ type: 'field', field: 'aadhaarNumber', value: e.target.value })} placeholder="0000 0000 0000" inputMode="numeric" autoComplete="off" disabled={isBusy(state.status)} /></label>
+        <label>Device ID<input value={state.form.deviceId} maxLength={128} onChange={(e) => dispatch({ type: 'field', field: 'deviceId', value: e.target.value })} placeholder="device-sandbox-001" autoComplete="off" disabled={isBusy(state.status)} /></label>
         <button disabled={isBusy(state.status)}>{isBusy(state.status) ? `${state.status.replace('-', ' ')}…` : 'Submit securely'}</button>
       </form>
       <div className="rate-test">
