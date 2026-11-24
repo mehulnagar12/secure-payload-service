@@ -54,7 +54,7 @@ Request body:
 
 The encrypted value is a versioned hybrid envelope. It uses RSA-OAEP with SHA-256 for both the OAEP digest and MGF1 digest to wrap a random AES-256-GCM data key. The decrypted value must be a non-empty JSON object.
 
-`Idempotency-Key` is required. Reusing a key with the same partner and encrypted payload returns the original transaction ID; reusing it with a different payload returns `409 Conflict`. The exercise uses a process-local idempotency store and must use a shared durable implementation in a multi-replica deployment.
+`Idempotency-Key` is required. Reusing a key with the same partner and encrypted payload returns the original transaction ID; reusing it with a different payload returns `409 Conflict`. The default process-local store is suitable for the sandbox. Set `SECURE_PAYLOAD_IDEMPOTENCY_BACKEND=redis` to use the shared, atomic Redis implementation in a multi-replica deployment.
 
 ### Success response
 
@@ -118,7 +118,7 @@ Requests over the limit return `429 Too Many Requests` with a `Retry-After: 1` h
 }
 ```
 
-Successful requests include an `X-RateLimit-Remaining` response header. The default `mock` rate-limit backend is intended for a single-process sandbox. Set `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis` to use the Redis-backed implementation. Its Lua script performs refill, consume, persistence, and expiry atomically, so all application replicas share one consistent token bucket per partner.
+Successful requests include an `X-RateLimit-Remaining` response header. The default `mock` rate-limit backend is intended for a single-process sandbox. Set `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis` to use the Redis-backed implementation. Its Lua script performs refill, consume, persistence, and expiry atomically, so all application replicas share one consistent token bucket per partner. The idempotency store can independently be switched to Redis with `SECURE_PAYLOAD_IDEMPOTENCY_BACKEND=redis`.
 
 ### Kafka event shape
 

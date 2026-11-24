@@ -37,7 +37,7 @@ The secure-payload endpoint is protected by a custom token-bucket rate limiter i
 - Requests above the limit immediately return `429 Too Many Requests`.
 - The cache key contains a SHA-256 hash of the partner ID rather than the raw identifier.
 - The cache is abstracted behind `DistributedRateLimitCache` with one atomic token-consumption operation.
-- The default `mock` backend is convenient for a single-process sandbox; the `redis` backend uses an atomic Lua token-bucket script and is shared by all application replicas.
+- The default `mock` backend is convenient for a single-process sandbox; the `redis` rate-limit backend uses an atomic Lua token-bucket script and is shared by all application replicas.
 
 ### Kafka delivery reliability
 
@@ -90,7 +90,7 @@ The following ports should be available:
 
 ## 4. Steps to run the application
 
-Open three terminal windows. Docker Compose starts Redis, Kafka, and Kafka UI together. The default local profile uses the in-memory mock rate-limit cache. To exercise the distributed Redis implementation, start the backend with `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis`.
+Open three terminal windows. Docker Compose starts Redis, Kafka, and Kafka UI together. The default local profile uses process-local mock stores. To exercise the distributed Redis implementations, start the backend with `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis SECURE_PAYLOAD_IDEMPOTENCY_BACKEND=redis`.
 
 ### Terminal 1: Start Redis, Kafka, and Kafka UI
 

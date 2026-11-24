@@ -1,5 +1,6 @@
 package com.uidai.securepayload.service;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.UUID;
  * Replace with a shared durable implementation before running multiple replicas.
  */
 @Component
+@ConditionalOnProperty(name = "secure-payload.idempotency-backend", havingValue = "mock", matchIfMissing = true)
 public class MockIdempotencyStore implements IdempotencyStore {
     private final Map<String, Reservation> values = new HashMap<>();
 
