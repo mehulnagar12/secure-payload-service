@@ -22,7 +22,7 @@ POST /api/v1/sandbox/secure-payload
 Idempotency-Key: <unique request key>
 ```
 
-The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8080`, Redis on host port `6379`, Kafka on host port `29092`, and Kafka UI on `http://localhost:8081`.
+The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8080`, Redis on host port `6379`, Kafka on host port `29092`, and Kafka UI on `http://localhost:8081`. The backend exposes operational health and metrics at `/actuator/health` and `/actuator/metrics`.
 
 ## 2. Reliability and infrastructure-protection patterns
 
@@ -63,6 +63,7 @@ If Kafka publication cannot be confirmed, the API returns `503 Service Unavailab
 - Decrypted content must be a non-empty JSON object.
 - Cryptographic, validation, Kafka, and unexpected failures map to stable HTTP error responses.
 - Error responses do not expose private keys, plaintext identity data, ciphertext, or internal Kafka/crypto details.
+- Every response includes an `X-Request-Id` correlation header; the same identifier is included in API errors and application log context.
 - Kafka publishing and cryptographic operations are isolated behind interfaces, allowing replacement and unit testing without coupling the application service to infrastructure implementations.
 
 
@@ -106,7 +107,7 @@ cd /<your-app-path>/secure-payload-service/backend
 mvn spring-boot:run
 ```
 
-The backend connects to Kafka at `localhost:29092`, can connect to Redis at `localhost:6379`, and listens on port `8080`.
+The backend connects to Kafka at `localhost:29092`, can connect to Redis at `localhost:6379`, and listens on port `8080`. Check readiness with `curl http://localhost:8080/actuator/health/readiness`.
 
 ### Terminal 3: Start the frontend
 

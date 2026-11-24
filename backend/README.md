@@ -8,7 +8,7 @@ Start Redis, Kafka, and Kafka UI:
 docker compose up -d
 ```
 
-Kafka UI is available at [http://localhost:8081](http://localhost:8081). Redis is available at `localhost:6379`. The Spring Boot app uses the Kafka host listener at `localhost:29092`. Start the API with:
+Kafka UI is available at [http://localhost:8081](http://localhost:8081). Redis is available at `localhost:6379`. The Spring Boot app uses the Kafka host listener at `localhost:29092`. Health and metrics are available at `/actuator/health` and `/actuator/metrics`. Start the API with:
 
 ```bash
 mvn spring-boot:run
@@ -66,6 +66,8 @@ When decryption, JSON validation, and Kafka publication all succeed, the service
 ```
 
 The event is published to `secure-payload-events` with event type `Secure_Payload_Received`.
+
+Every response includes an `X-Request-Id` header. Use it to correlate an API error with server logs; the application does not log plaintext identity data, ciphertext, or private-key material.
 
 ### Error responses
 

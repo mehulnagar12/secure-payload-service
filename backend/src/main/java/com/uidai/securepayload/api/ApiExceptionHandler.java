@@ -97,8 +97,10 @@ public class ApiExceptionHandler {
      */
     private ResponseEntity<ApiError> response(HttpStatus status, String code, String message,
                                               HttpServletRequest request) {
+        Object requestIdAttribute = request.getAttribute(RequestCorrelationFilter.REQUEST_ID_ATTRIBUTE);
+        UUID requestId = requestIdAttribute instanceof UUID correlationId ? correlationId : UUID.randomUUID();
         return ResponseEntity.status(status).body(new ApiError(Instant.now(), status.value(), code, message,
-                request.getRequestURI(), UUID.randomUUID()));
+                request.getRequestURI(), requestId));
     }
 
     /**
