@@ -3,6 +3,7 @@ package com.uidai.securepayload.ratelimit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.uidai.securepayload.api.ApiError;
+import com.uidai.securepayload.config.SecurePayloadProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletInputStream;
@@ -27,10 +28,10 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
     private static final String SECURE_PAYLOAD_PATH = "/api/v1/sandbox/secure-payload";
     private static final int TOO_MANY_REQUESTS_STATUS = 429;
     private static final int MAX_REQUEST_BODY_BYTES = 32 * 1024;
-    private static final String FRONTEND_ORIGIN = "http://localhost:5173";
 
     private final ObjectMapper objectMapper;
     private final PartnerRateLimiter rateLimiter;
+    private final String allowedOrigin;
 
     /**
      * Creates the request filter.
@@ -38,9 +39,11 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
      * @param objectMapper JSON parser used to read only the partner identifier
      * @param rateLimiter distributed partner rate limiter
      */
-    public PartnerRateLimitingFilter(ObjectMapper objectMapper, PartnerRateLimiter rateLimiter) {
+    public PartnerRateLimitingFilter(ObjectMapper objectMapper, PartnerRateLimiter rateLimiter,
+                                     SecurePayloadProperties properties) {
         this.objectMapper = objectMapper;
         this.rateLimiter = rateLimiter;
+        this.allowedOrigin = properties.allowedOrigin();
     }
 
     /**
@@ -104,7 +107,7 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
     private void reject(HttpServletResponse response, PartnerRateLimiter.RateLimitDecision decision)
             throws IOException {
         // The filter can terminate the request before Spring MVC applies @CrossOrigin.
-        response.setHeader("Access-Control-Allow-Origin", FRONTEND_ORIGIN);
+        response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
         response.setHeader("Access-Control-Expose-Headers", "Retry-After");
         response.setHeader("Vary", "Origin");
         response.setStatus(TOO_MANY_REQUESTS_STATUS);

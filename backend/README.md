@@ -143,6 +143,10 @@ Kafka uses `partner_id` as the message key. The API returns success only after K
 
 Local development loads the mock private key from a classpath resource. Production deployments must set `SECURE_PAYLOAD_PRIVATE_KEY_RESOURCE` to a secrets-manager, mounted-file, or HSM-backed provider and must not use the mock key.
 
+The public-key endpoint derives its public key from the same configured private-key material, preventing key-pair drift. Set `SECURE_PAYLOAD_ALLOWED_ORIGIN` to the exact trusted frontend origin in non-local environments; wildcard CORS is not supported. A production deployment must additionally put the service behind TLS and partner authentication (mTLS or signed tokens), use a KMS/HSM key provider, restrict Actuator exposure, and forward audit events without plaintext identity data.
+
+If Kafka acknowledgement times out, the idempotency reservation is intentionally retained because the broker may already have accepted the event. Operational reconciliation must inspect the Kafka topic before clearing an in-doubt reservation; this prevents duplicate verified identity events.
+
 ## Tests
 
 ```bash

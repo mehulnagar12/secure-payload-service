@@ -5,6 +5,7 @@ import com.uidai.securepayload.api.SecurePayloadRequest;
 import com.uidai.securepayload.crypto.PayloadDecryptor;
 import com.uidai.securepayload.event.SecurePayloadEvent;
 import com.uidai.securepayload.event.SecurePayloadEventPublisher;
+import com.uidai.securepayload.event.EventPublicationException;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -80,5 +81,18 @@ class SecurePayloadServiceTest {
         assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1"))
                 .isInstanceOf(MalformedPayloadException.class);
         org.mockito.Mockito.verifyNoInteractions(publisher);
+    }
+
+    @Test
+    void retainsIdempotencyReservationWhenKafkaOutcomeIsUnknown() {
+        when(decryptor.decrypt("ciphertext")).thenReturn(
+                "{\"name\":\"Ada\",\"aadhaar_number\":\"000000000000\",\"device_id\":\"device-1\"}");
+        org.mockito.Mockito.doThrow(new EventPublicationException("unknown", new RuntimeException()))
+                .when(publisher).publish(any(SecurePayloadEvent.class));
+
+        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1"))
+                .isInstanceOf(EventPublicationException.class);
+        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1"))
+                .isInstanceOf(IdempotencyInProgressException.class);
     }
 }

@@ -7,6 +7,7 @@ import com.uidai.securepayload.api.SecurePayloadRequest;
 import com.uidai.securepayload.crypto.PayloadDecryptor;
 import com.uidai.securepayload.event.SecurePayloadEvent;
 import com.uidai.securepayload.event.SecurePayloadEventPublisher;
+import com.uidai.securepayload.event.EventPublicationException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -64,6 +65,10 @@ public class SecurePayloadService {
                     reservation.transactionId(), partnerId, Instant.now(), identity));
             idempotencyStore.markPublished(partnerId, idempotencyKey);
             return reservation.transactionId();
+        } catch (EventPublicationException exception) {
+            // Kafka acknowledgement timeouts are ambiguous: the broker may already have accepted the event.
+            // Keep the reservation so a client retry cannot publish a second event.
+            throw exception;
         } catch (RuntimeException exception) {
             idempotencyStore.release(partnerId, idempotencyKey);
             throw exception;

@@ -3,8 +3,6 @@ package com.uidai.securepayload.crypto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.uidai.securepayload.config.SecurePayloadProperties;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
@@ -12,12 +10,9 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.MGF1ParameterSpec;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 
 /**
@@ -37,17 +32,11 @@ public class HybridPayloadDecryptor implements PayloadDecryptor {
     private final ObjectMapper objectMapper;
     private final String keyId;
 
-    public HybridPayloadDecryptor(SecurePayloadProperties properties, ResourceLoader resourceLoader,
+    public HybridPayloadDecryptor(SecurePayloadProperties properties, RsaKeyProvider keyProvider,
                                   ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.keyId = properties.keyId();
-        try {
-            Resource resource = resourceLoader.getResource(properties.privateKeyResource());
-            byte[] der = Base64.getMimeDecoder().decode(resource.getInputStream().readAllBytes());
-            privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
-        } catch (IOException | java.security.GeneralSecurityException exception) {
-            throw new IllegalStateException("Unable to initialize configured RSA key", exception);
-        }
+        this.privateKey = keyProvider.privateKey();
     }
 
     @Override

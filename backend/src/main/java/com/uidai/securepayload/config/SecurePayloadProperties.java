@@ -16,7 +16,8 @@ public record SecurePayloadProperties(
         String topic,
         Duration kafkaSendTimeout,
         String privateKeyResource,
-        String keyId
+        String keyId,
+        String allowedOrigin
 ) {
     /**
      * Applies safe defaults when configuration values are absent or invalid.
@@ -30,5 +31,6 @@ public record SecurePayloadProperties(
         privateKeyResource = privateKeyResource == null || privateKeyResource.isBlank()
                 ? "classpath:mock-private-key.der.b64" : privateKeyResource;
         keyId = keyId == null || keyId.isBlank() ? "sandbox-rsa-2026-01" : keyId;
+        allowedOrigin = allowedOrigin == null || allowedOrigin.isBlank() ? "http://localhost:5173" : allowedOrigin;
     }
 }

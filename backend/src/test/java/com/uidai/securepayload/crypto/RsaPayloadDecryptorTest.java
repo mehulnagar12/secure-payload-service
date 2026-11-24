@@ -2,7 +2,6 @@ package com.uidai.securepayload.crypto;
 
 import org.junit.jupiter.api.Test;
 import com.uidai.securepayload.config.SecurePayloadProperties;
-import org.springframework.core.io.DefaultResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.crypto.Cipher;
@@ -67,8 +66,10 @@ class RsaPayloadDecryptorTest {
 
         assertThat(new HybridPayloadDecryptor(
                 new SecurePayloadProperties("test", java.time.Duration.ofSeconds(5),
-                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01"),
-                new DefaultResourceLoader(), new ObjectMapper()).decrypt(encrypted))
+                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01", "http://localhost:5173"),
+                new RsaKeyProvider(new SecurePayloadProperties("test", java.time.Duration.ofSeconds(5),
+                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01", "http://localhost:5173"),
+                        new org.springframework.core.io.DefaultResourceLoader()), new ObjectMapper()).decrypt(encrypted))
                 .isEqualTo(plaintext);
     }
 
@@ -79,8 +80,10 @@ class RsaPayloadDecryptorTest {
     void rejectsMalformedEnvelope() {
         HybridPayloadDecryptor decryptor = new HybridPayloadDecryptor(
                 new SecurePayloadProperties("test", java.time.Duration.ofSeconds(5),
-                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01"),
-                new DefaultResourceLoader(), new ObjectMapper());
+                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01", "http://localhost:5173"),
+                new RsaKeyProvider(new SecurePayloadProperties("test", java.time.Duration.ofSeconds(5),
+                        "classpath:mock-private-key.der.b64", "sandbox-rsa-2026-01", "http://localhost:5173"),
+                        new org.springframework.core.io.DefaultResourceLoader()), new ObjectMapper());
         assertThatThrownBy(() -> decryptor.decrypt("not-base64"))
                 .isInstanceOf(PayloadDecryptionException.class);
     }

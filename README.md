@@ -14,6 +14,8 @@ The frontend collects mock identity data:
 
 The data is encrypted in the browser with AES-256-GCM, while the AES key is wrapped with the backend's RSA public key before it is sent to the backend. The backend decrypts the envelope with its private key, validates the decrypted JSON, creates a transaction ID, and publishes a verified `Secure_Payload_Received` event to Kafka.
 
+The active public key is derived from the configured private-key provider, so key rotation cannot accidentally expose a public key that does not match the decrypting key. Production deployment requirements are documented in `backend/README.md` and include TLS, partner authentication, KMS/HSM-backed key storage, restricted Actuator endpoints, and exact-origin CORS.
+
 This is a sandbox exercise. Do not enter real Aadhaar or other production identity data.
 
 ### Main endpoints

@@ -45,3 +45,4 @@ secure-payload:
   key-id: ${SECURE_PAYLOAD_KEY_ID:sandbox-rsa-2026-01}
   rate-limit-backend: ${SECURE_PAYLOAD_RATE_LIMIT_BACKEND:mock}
   idempotency-backend: ${SECURE_PAYLOAD_IDEMPOTENCY_BACKEND:mock}
+  allowed-origin: ${SECURE_PAYLOAD_ALLOWED_ORIGIN:http://localhost:5173}
