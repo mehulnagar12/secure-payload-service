@@ -22,7 +22,7 @@ POST /api/v1/sandbox/secure-payload
 Idempotency-Key: <unique request key>
 ```
 
-The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8080`, Kafka on host port `29092`, and Kafka UI on `http://localhost:8081`.
+The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8080`, Redis on host port `6379`, Kafka on host port `29092`, and Kafka UI on `http://localhost:8081`.
 
 ## 2. Reliability and infrastructure-protection patterns
 
@@ -35,7 +35,7 @@ The secure-payload endpoint is protected by a custom token-bucket rate limiter i
 - Requests above the limit immediately return `429 Too Many Requests`.
 - The cache key contains a SHA-256 hash of the partner ID rather than the raw identifier.
 - The cache is abstracted behind `DistributedRateLimitCache` with one atomic token-consumption operation.
-- `MockDistributedRateLimitCache` is provided for the exercise. Production Kubernetes deployments should replace it with a Redis-backed adapter shared by all replicas.
+- The default `mock` backend is convenient for a single-process sandbox; the `redis` backend uses an atomic Lua token-bucket script and is shared by all application replicas.
 
 ### Kafka delivery reliability
 
@@ -81,14 +81,15 @@ The following ports should be available:
 | --- | --- |
 | `8080` | Spring Boot backend |
 | `8081` | Kafka UI |
+| `6379` | Redis rate-limit state |
 | `29092` | Kafka host listener |
 | `5173` | React/Vite frontend |
 
 ## 4. Steps to run the application
 
-Open three terminal windows.
+Open three terminal windows. Docker Compose starts Redis, Kafka, and Kafka UI together. The default local profile uses the in-memory mock rate-limit cache. To exercise the distributed Redis implementation, start the backend with `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis`.
 
-### Terminal 1: Start Kafka and Kafka UI
+### Terminal 1: Start Redis, Kafka, and Kafka UI
 
 ```bash
 cd /<your-app-path>/secure-payload-service/backend
@@ -105,7 +106,7 @@ cd /<your-app-path>/secure-payload-service/backend
 mvn spring-boot:run
 ```
 
-The backend connects to Kafka at `localhost:29092` and listens on port `8080`.
+The backend connects to Kafka at `localhost:29092`, can connect to Redis at `localhost:6379`, and listens on port `8080`.
 
 ### Terminal 3: Start the frontend
 
@@ -135,6 +136,7 @@ ENCRYPTED_DATA="$(bash scripts/encrypt-sample-payload.sh)"
 
 curl -X POST http://localhost:8080/api/v1/sandbox/secure-payload \
   -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
   -d "{\"encrypted_data\":\"$ENCRYPTED_DATA\",\"partner_id\":\"sandbox-partner-001\"}"
 ```
 

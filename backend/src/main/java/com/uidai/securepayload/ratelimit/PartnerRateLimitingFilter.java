@@ -56,7 +56,7 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         if (!"POST".equalsIgnoreCase(request.getMethod())
-                || !SECURE_PAYLOAD_PATH.equals(request.getRequestURI())) {
+                || !SECURE_PAYLOAD_PATH.equals(request.getServletPath())) {
             filterChain.doFilter(request, response);
             return;
         }

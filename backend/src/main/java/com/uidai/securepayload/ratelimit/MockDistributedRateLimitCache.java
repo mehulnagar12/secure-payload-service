@@ -1,6 +1,7 @@
 package com.uidai.securepayload.ratelimit;
 
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ import java.util.Map;
  * with one Lua script or equivalent server-side transaction.</p>
  */
 @Component
+@ConditionalOnProperty(name = "secure-payload.rate-limit-backend", havingValue = "mock", matchIfMissing = true)
 public class MockDistributedRateLimitCache implements DistributedRateLimitCache {
     private final Map<String, Bucket> values = new HashMap<>();
 

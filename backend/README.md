@@ -2,13 +2,13 @@
 
 ## Run locally
 
-Start Kafka and Kafka UI:
+Start Redis, Kafka, and Kafka UI:
 
 ```bash
 docker compose up -d
 ```
 
-Kafka UI is available at [http://localhost:8081](http://localhost:8081). The Spring Boot app uses the host listener at `localhost:29092`. Start the API with:
+Kafka UI is available at [http://localhost:8081](http://localhost:8081). Redis is available at `localhost:6379`. The Spring Boot app uses the Kafka host listener at `localhost:29092`. Start the API with:
 
 ```bash
 mvn spring-boot:run
@@ -25,6 +25,7 @@ Use the printed Base64 value in the API request:
 ```bash
 curl -X POST http://localhost:8080/api/v1/sandbox/secure-payload \
   -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
   -d '{"encrypted_data":"<PASTE_BASE64_VALUE>","partner_id":"sandbox-partner-001"}'
 ```
 
@@ -113,7 +114,7 @@ Requests over the limit return `429 Too Many Requests` with a `Retry-After: 1` h
 }
 ```
 
-Successful requests include an `X-RateLimit-Remaining` response header. The exercise uses `MockDistributedRateLimitCache`; it is intentionally an adapter seam, not a production multi-pod cache. Replace it with a Redis-backed implementation whose token consume operation is atomic across replicas, normally using a Lua script.
+Successful requests include an `X-RateLimit-Remaining` response header. The default `mock` rate-limit backend is intended for a single-process sandbox. Set `SECURE_PAYLOAD_RATE_LIMIT_BACKEND=redis` to use the Redis-backed implementation. Its Lua script performs refill, consume, persistence, and expiry atomically, so all application replicas share one consistent token bucket per partner.
 
 ### Kafka event shape
 

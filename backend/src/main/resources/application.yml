@@ -1,6 +1,10 @@
 spring:
   application:
     name: secure-payload-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
@@ -22,3 +26,4 @@ secure-payload:
   kafka-send-timeout: 5s
   private-key-resource: ${SECURE_PAYLOAD_PRIVATE_KEY_RESOURCE:classpath:mock-private-key.der.b64}
   key-id: ${SECURE_PAYLOAD_KEY_ID:sandbox-rsa-2026-01}
+  rate-limit-backend: ${SECURE_PAYLOAD_RATE_LIMIT_BACKEND:mock}
