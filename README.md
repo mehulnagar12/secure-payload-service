@@ -1,5 +1,7 @@
 # UIDAI Secure Payload Sandbox
 
+Every push to `main` and every pull request runs backend tests, the frontend production build, and Docker Compose configuration validation through GitHub Actions.
+
 ## 1. What the application does
 
 This application demonstrates a secure partner-payload workflow using a React frontend, a Java Spring Boot backend, RSA encryption, and Kafka.

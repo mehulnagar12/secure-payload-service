@@ -1,5 +1,7 @@
 # Secure Payload Service
 
+The repository CI job runs `mvn test` with Java 21 and validates the Docker Compose configuration on every pull request.
+
 ## Run locally
 
 Start Redis, Kafka, and Kafka UI:
