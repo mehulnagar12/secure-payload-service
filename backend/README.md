@@ -93,6 +93,22 @@ All errors use this response structure:
 
 The API deliberately avoids returning cryptographic exception details, private-key material, ciphertext, or decrypted identity data in errors. The `request_id` can be used to correlate server logs without exposing sensitive payload content.
 
+### Rate limiting
+
+`POST /api/v1/sandbox/secure-payload` is protected by a custom fixed-window limiter. Each `partner_id` may make at most 10 requests during one UTC epoch-second. The filter reads only `partner_id`, increments the distributed-cache counter, and rejects the request before the controller, decryption, or Kafka logic runs.
+
+Requests over the limit return `429 Too Many Requests` with a `Retry-After: 1` header and this error code:
+
+```json
+{
+  "status": 429,
+  "code": "RATE_LIMIT_EXCEEDED",
+  "message": "Too many requests for this partner"
+}
+```
+
+Successful requests include an `X-RateLimit-Remaining` response header. The exercise uses `MockDistributedRateLimitCache`; it is intentionally an adapter seam, not a production multi-pod cache. Counter initialization uses atomic `setIfAbsent` so concurrent increments cannot reset the counter. Replace it with a Redis-backed implementation whose `increment` and `setIfAbsent` operations are atomic across replicas.
+
 ### Kafka event shape
 
 Example event published to `secure-payload-events`:

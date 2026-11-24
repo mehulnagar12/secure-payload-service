@@ -14,6 +14,12 @@ input:disabled { background: #f5f7fa; }
 button { margin-top: 4px; padding: 14px 16px; border: 0; border-radius: 10px; color: white; background: #2864c7; font: inherit; font-weight: 800; cursor: pointer; }
 button:hover:not(:disabled) { background: #1e4f9f; }
 button:disabled { cursor: wait; opacity: .65; }
+.rate-test { display: grid; gap: 12px; margin-top: 24px; padding-top: 22px; border-top: 1px solid #e2e8ef; }
+.rate-test div { display: grid; gap: 4px; }
+.rate-test span { color: #697787; font-size: .82rem; line-height: 1.45; }
+.secondary { margin-top: 0; color: #2864c7; background: #e8f0fc; }
+.secondary:hover:not(:disabled) { background: #d7e5fa; }
+.test-result { margin: 14px 0 0; padding: 12px; border-radius: 10px; color: #34495e; background: #f1f5f9; font-size: .88rem; line-height: 1.5; }
 .success, .error { margin: 20px 0 0; padding: 13px; border-radius: 10px; line-height: 1.5; }
 .success { color: #125c3c; background: #e4f7ed; }
 .error { color: #9c2d2d; background: #fff0f0; }

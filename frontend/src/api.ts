@@ -15,12 +15,28 @@ export type ApiError = {
   request_id?: string
 }
 
+/** Error raised when the backend returns a non-success HTTP response. */
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
 const readResponse = async <T>(response: Response): Promise<T> => {
   const body = (await response.json().catch(() => ({}))) as ApiError
   if (!response.ok) {
-    throw new Error(body.message ?? `Request failed with status ${response.status}`)
+    throw new ApiRequestError(
+      body.message ?? `Request failed with status ${response.status}`,
+      response.status,
+      body.code,
+    )
   }
   return body as T
 }

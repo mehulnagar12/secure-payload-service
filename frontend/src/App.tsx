@@ -1,14 +1,16 @@
 import { FormEvent, useEffect, useReducer, useRef } from 'react'
-import { fetchPublicKey, submitSecurePayload } from './api'
+import { ApiRequestError, fetchPublicKey, submitSecurePayload } from './api'
 
 type FormState = { name: string; aadhaarNumber: string; deviceId: string }
-type Status = 'idle' | 'loading-key' | 'encrypting' | 'submitting' | 'success' | 'error'
-type State = { form: FormState; status: Status; error: string; transactionId: string }
+type Status = 'idle' | 'loading-key' | 'encrypting' | 'submitting' | 'rate-testing' | 'success' | 'error'
+type RateTestResult = { total: number; succeeded: number; rejected: number; otherErrors: number }
+type State = { form: FormState; status: Status; error: string; transactionId: string; rateTest: RateTestResult | null }
 type Action =
   | { type: 'field'; field: keyof FormState; value: string }
   | { type: 'status'; status: Status }
   | { type: 'error'; message: string }
   | { type: 'success'; transactionId: string }
+  | { type: 'rateTestComplete'; result: RateTestResult }
   | { type: 'reset' }
 
 const initialState: State = {
@@ -16,19 +18,27 @@ const initialState: State = {
   status: 'idle',
   error: '',
   transactionId: '',
+  rateTest: null,
 }
 
 const reducer = (state: State, action: Action): State => {
   switch (action.type) {
-    case 'field': return { ...state, form: { ...state.form, [action.field]: action.value }, error: '' }
+    case 'field': return { ...state, form: { ...state.form, [action.field]: action.value }, error: '', rateTest: null }
     case 'status': return { ...state, status: action.status, error: '' }
     case 'error': return { ...state, status: 'error', error: action.message, transactionId: '' }
     case 'success': return { ...state, status: 'success', error: '', transactionId: action.transactionId }
+    case 'rateTestComplete': return { ...state, status: 'idle', error: '', rateTest: action.result }
     case 'reset': return initialState
   }
 }
 
-const isBusy = (status: Status) => ['loading-key', 'encrypting', 'submitting'].includes(status)
+const isBusy = (status: Status) => ['loading-key', 'encrypting', 'submitting', 'rate-testing'].includes(status)
+const RATE_LIMIT_TEST_REQUESTS = 20
+
+const waitForNextSecond = () => new Promise<void>((resolve) => {
+  const delay = 1000 - (Date.now() % 1000) + 25
+  window.setTimeout(resolve, delay)
+})
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState)
@@ -73,6 +83,47 @@ export default function App() {
     }
   }
 
+  const testRateLimiter = async () => {
+    if (isBusy(state.status)) return
+    if (!state.form.name.trim() || !state.form.aadhaarNumber.trim() || !state.form.deviceId.trim()) {
+      dispatch({ type: 'error', message: 'Fill in all form fields before testing the rate limiter.' })
+      return
+    }
+
+    const controller = new AbortController()
+    try {
+      dispatch({ type: 'status', status: 'rate-testing' })
+      const keyResponse = await fetchPublicKey(controller.signal)
+      const plaintext = JSON.stringify({
+        name: state.form.name.trim(),
+        aadhaar_number: state.form.aadhaarNumber.trim(),
+        device_id: state.form.deviceId.trim(),
+      })
+      const encryptedData = await encryptInWorker(keyResponse.public_key, plaintext)
+      const partnerId = `rate-limit-test-${Date.now()}`
+      await waitForNextSecond()
+      const attempts = await Promise.all(Array.from({ length: RATE_LIMIT_TEST_REQUESTS }, () =>
+        submitSecurePayload(encryptedData, partnerId, controller.signal)
+          .then(() => ({ status: 202 }))
+          .catch((error: unknown) => ({
+            status: error instanceof ApiRequestError ? error.status : 0,
+          })),
+      ))
+      dispatch({
+        type: 'rateTestComplete',
+        result: {
+          total: attempts.length,
+          succeeded: attempts.filter((attempt) => attempt.status === 202).length,
+          rejected: attempts.filter((attempt) => attempt.status === 429).length,
+          otherErrors: attempts.filter((attempt) => attempt.status !== 202 && attempt.status !== 429).length,
+        },
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      dispatch({ type: 'error', message: error instanceof Error ? error.message : 'Rate-limit test failed.' })
+    }
+  }
+
   return <main className="page-shell">
     <section className="card">
       <p className="eyebrow">UIDAI sandbox</p>
@@ -84,6 +135,18 @@ export default function App() {
         <label>Device ID<input value={state.form.deviceId} onChange={(e) => dispatch({ type: 'field', field: 'deviceId', value: e.target.value })} placeholder="device-sandbox-001" disabled={isBusy(state.status)} /></label>
         <button disabled={isBusy(state.status)}>{isBusy(state.status) ? `${state.status.replace('-', ' ')}…` : 'Submit securely'}</button>
       </form>
+      <div className="rate-test">
+        <div>
+          <strong>Development test</strong>
+          <span>Send a burst of 20 requests for one partner to verify the 10-per-second limit.</span>
+        </div>
+        <button className="secondary" type="button" onClick={testRateLimiter} disabled={isBusy(state.status)}>
+          {state.status === 'rate-testing' ? 'Testing rate limiter…' : 'Test rate limiter'}
+        </button>
+      </div>
+      {state.rateTest && <p className="test-result" role="status">
+        Sent {state.rateTest.total}: <strong>{state.rateTest.succeeded} succeeded</strong>, <strong>{state.rateTest.rejected} rate-limited</strong>{state.rateTest.otherErrors > 0 && `, ${state.rateTest.otherErrors} other errors`}.
+      </p>}
       {state.status === 'success' && <p className="success" role="status">Published. Transaction ID: <code>{state.transactionId}</code></p>}
       {state.status === 'error' && <p className="error" role="alert">{state.error}</p>}
       <p className="notice">This is mock data only. Do not enter real Aadhaar information.</p>
