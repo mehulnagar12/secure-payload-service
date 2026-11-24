@@ -37,6 +37,7 @@ The response contains a `transaction_id`. The corresponding `Secure_Payload_Rece
 ```text
 POST /api/v1/sandbox/secure-payload
 Content-Type: application/json
+Idempotency-Key: <unique request key>
 ```
 
 Request body:
@@ -49,6 +50,8 @@ Request body:
 ```
 
 The encrypted value is a versioned hybrid envelope. It uses RSA-OAEP with SHA-256 for both the OAEP digest and MGF1 digest to wrap a random AES-256-GCM data key. The decrypted value must be a non-empty JSON object.
+
+`Idempotency-Key` is required. Reusing a key with the same partner and encrypted payload returns the original transaction ID; reusing it with a different payload returns `409 Conflict`. The exercise uses a process-local idempotency store and must use a shared durable implementation in a multi-replica deployment.
 
 ### Success response
 
@@ -91,6 +94,8 @@ All errors use this response structure:
 | `500 Internal Server Error` | `INTERNAL_ERROR` | Unexpected server-side failure | `The request could not be processed` |
 
 The API deliberately avoids returning cryptographic exception details, private-key material, ciphertext, or decrypted identity data in errors. The `request_id` can be used to correlate server logs without exposing sensitive payload content.
+
+Each submission must include a unique `Idempotency-Key`. Retrying the same request with the same key returns the original transaction ID instead of publishing a duplicate event.
 
 ### Rate limiting
 

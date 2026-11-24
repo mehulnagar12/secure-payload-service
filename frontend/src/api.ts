@@ -62,11 +62,12 @@ export const fetchPublicKey = async (signal: AbortSignal): Promise<PublicKeyResp
 export const submitSecurePayload = async (
   encryptedData: string,
   partnerId: string,
+  idempotencyKey: string,
   signal: AbortSignal,
 ): Promise<SecurePayloadResponse> => {
   const response = await fetchWithTimeout(`${apiBaseUrl}/api/v1/sandbox/secure-payload`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ encrypted_data: encryptedData, partner_id: partnerId }),
     signal,
   })

@@ -3,6 +3,8 @@ package com.uidai.securepayload.api;
 import com.uidai.securepayload.crypto.PayloadDecryptionException;
 import com.uidai.securepayload.event.EventPublicationException;
 import com.uidai.securepayload.service.MalformedPayloadException;
+import com.uidai.securepayload.service.IdempotencyConflictException;
+import com.uidai.securepayload.service.IdempotencyInProgressException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -46,6 +49,11 @@ public class ApiExceptionHandler {
         return response(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", "Request body must be valid JSON", request);
     }
 
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    ResponseEntity<ApiError> missingHeader(MissingRequestHeaderException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", exception.getMessage(), request);
+    }
+
     @ExceptionHandler(EventPublicationException.class)
     /**
      * Handles failures while waiting for Kafka publication acknowledgement.
@@ -57,6 +65,12 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiError> kafkaUnavailable(EventPublicationException exception, HttpServletRequest request) {
         return response(HttpStatus.SERVICE_UNAVAILABLE, "EVENT_PUBLICATION_FAILED",
                 "The secure payload could not be published", request);
+    }
+
+    @ExceptionHandler({IdempotencyConflictException.class, IdempotencyInProgressException.class})
+    ResponseEntity<ApiError> idempotencyConflict(Exception exception, HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT",
+                exception.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

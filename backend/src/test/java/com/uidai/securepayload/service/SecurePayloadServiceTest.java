@@ -22,7 +22,8 @@ import static org.mockito.Mockito.when;
 class SecurePayloadServiceTest {
     private final PayloadDecryptor decryptor = mock(PayloadDecryptor.class);
     private final SecurePayloadEventPublisher publisher = mock(SecurePayloadEventPublisher.class);
-    private final SecurePayloadService service = new SecurePayloadService(decryptor, publisher, new ObjectMapper());
+    private final SecurePayloadService service = new SecurePayloadService(decryptor, publisher,
+            new ObjectMapper(), new MockIdempotencyStore());
 
     @Test
     /**
@@ -32,7 +33,7 @@ class SecurePayloadServiceTest {
         when(decryptor.decrypt("ciphertext")).thenReturn(
                 "{\"name\":\"Ada\",\"aadhaar_number\":\"000000000000\",\"device_id\":\"device-1\"}");
 
-        UUID transactionId = service.process(new SecurePayloadRequest("ciphertext", "partner-1"));
+        UUID transactionId = service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1");
 
         assertThat(transactionId).isNotNull();
         verify(publisher).publish(any(SecurePayloadEvent.class));
@@ -45,7 +46,39 @@ class SecurePayloadServiceTest {
     void rejectsMalformedDecryptedJsonBeforePublishing() {
         when(decryptor.decrypt("ciphertext")).thenReturn("not-json");
 
-        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1")))
+        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1"))
                 .isInstanceOf(MalformedPayloadException.class);
+    }
+
+    @Test
+    void returnsSameTransactionForPublishedDuplicate() {
+        when(decryptor.decrypt("ciphertext")).thenReturn(
+                "{\"name\":\"Ada\",\"aadhaar_number\":\"000000000000\",\"device_id\":\"device-1\"}");
+
+        UUID first = service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1");
+        UUID second = service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1");
+
+        assertThat(second).isEqualTo(first);
+        verify(publisher, org.mockito.Mockito.times(1)).publish(any(SecurePayloadEvent.class));
+    }
+
+    @Test
+    void rejectsIdempotencyKeyReuseForDifferentPayload() {
+        when(decryptor.decrypt("ciphertext")).thenReturn(
+                "{\"name\":\"Ada\",\"aadhaar_number\":\"000000000000\",\"device_id\":\"device-1\"}");
+        service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1");
+
+        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("different", "partner-1"), "request-1"))
+                .isInstanceOf(IdempotencyConflictException.class);
+    }
+
+    @Test
+    void rejectsInvalidIdentityFieldsBeforePublishing() {
+        when(decryptor.decrypt("ciphertext")).thenReturn(
+                "{\"name\":\" \",\"aadhaar_number\":\"not-an-aadhaar\",\"device_id\":\"device-1\"}");
+
+        assertThatThrownBy(() -> service.process(new SecurePayloadRequest("ciphertext", "partner-1"), "request-1"))
+                .isInstanceOf(MalformedPayloadException.class);
+        org.mockito.Mockito.verifyNoInteractions(publisher);
     }
 }

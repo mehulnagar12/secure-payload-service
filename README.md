@@ -19,6 +19,7 @@ This is a sandbox exercise. Do not enter real Aadhaar or other production identi
 ```text
 GET  /api/v1/keys/public
 POST /api/v1/sandbox/secure-payload
+Idempotency-Key: <unique request key>
 ```
 
 The frontend runs on `http://localhost:5173`, the backend on `http://localhost:8080`, Kafka on host port `29092`, and Kafka UI on `http://localhost:8081`.

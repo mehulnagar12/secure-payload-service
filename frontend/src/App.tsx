@@ -79,7 +79,7 @@ export default function App() {
         plaintext,
       }))
       dispatch({ type: 'status', status: 'submitting' })
-      const response = await submitSecurePayload(encryptedData, 'sandbox-frontend', controller.signal)
+      const response = await submitSecurePayload(encryptedData, 'sandbox-frontend', crypto.randomUUID(), controller.signal)
       dispatch({ type: 'success', transactionId: response.transaction_id })
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
@@ -115,7 +115,7 @@ export default function App() {
       }))
       const partnerId = `rate-limit-test-${Date.now()}`
       const attempts = await Promise.all(Array.from({ length: RATE_LIMIT_TEST_REQUESTS }, () =>
-        submitSecurePayload(encryptedData, partnerId, controller.signal)
+        submitSecurePayload(encryptedData, partnerId, crypto.randomUUID(), controller.signal)
           .then(() => ({ status: 202 }))
           .catch((error: unknown) => ({
             status: error instanceof ApiRequestError ? error.status : 0,

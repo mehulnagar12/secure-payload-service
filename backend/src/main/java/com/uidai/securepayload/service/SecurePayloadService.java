@@ -10,6 +10,9 @@ import com.uidai.securepayload.event.SecurePayloadEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 @Service
@@ -21,6 +24,7 @@ public class SecurePayloadService {
     private final PayloadDecryptor decryptor;
     private final SecurePayloadEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final IdempotencyStore idempotencyStore;
 
     /**
      * Creates the service with replaceable cryptographic and publication boundaries.
@@ -30,26 +34,40 @@ public class SecurePayloadService {
      * @param objectMapper JSON parser
      */
     public SecurePayloadService(PayloadDecryptor decryptor, SecurePayloadEventPublisher eventPublisher,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper, IdempotencyStore idempotencyStore) {
         this.decryptor = decryptor;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
+        this.idempotencyStore = idempotencyStore;
     }
 
     /**
      * Processes one encrypted partner request.
      *
      * @param request validated API request
+     * @param idempotencyKey client-supplied key used to prevent replayed requests
      * @return transaction ID assigned to the request
      * @throws MalformedPayloadException when decrypted content is not a non-empty JSON object
      */
-    public UUID process(SecurePayloadRequest request) {
-        String plaintext = decryptor.decrypt(request.encrypted_data());
-        JsonNode identity = parseIdentity(plaintext);
+    public UUID process(SecurePayloadRequest request, String idempotencyKey) {
         UUID transactionId = UUID.randomUUID();
-        eventPublisher.publish(new SecurePayloadEvent("Secure_Payload_Received", "1.0", transactionId,
-                request.partner_id(), Instant.now(), identity));
-        return transactionId;
+        String partnerId = request.partner_id();
+        IdempotencyStore.Reservation reservation = idempotencyStore.reserve(
+                partnerId, idempotencyKey, requestHash(request.encrypted_data()), transactionId);
+        if (reservation.status() == IdempotencyStore.Reservation.Status.PUBLISHED) {
+            return reservation.transactionId();
+        }
+        try {
+            String plaintext = decryptor.decrypt(request.encrypted_data());
+            JsonNode identity = parseIdentity(plaintext);
+            eventPublisher.publish(new SecurePayloadEvent("Secure_Payload_Received", "1.0",
+                    reservation.transactionId(), partnerId, Instant.now(), identity));
+            idempotencyStore.markPublished(partnerId, idempotencyKey);
+            return reservation.transactionId();
+        } catch (RuntimeException exception) {
+            idempotencyStore.release(partnerId, idempotencyKey);
+            throw exception;
+        }
     }
 
     /**
@@ -68,7 +86,12 @@ public class SecurePayloadService {
                     || !identity.hasNonNull("device_id")
                     || !identity.get("name").isTextual()
                     || !identity.get("aadhaar_number").isTextual()
-                    || !identity.get("device_id").isTextual()) {
+                    || !identity.get("device_id").isTextual()
+                    || identity.get("name").asText().isBlank()
+                    || identity.get("name").asText().length() > 100
+                    || !identity.get("aadhaar_number").asText().replaceAll("\\s", "").matches("\\d{12}")
+                    || identity.get("device_id").asText().isBlank()
+                    || identity.get("device_id").asText().length() > 128) {
                 throw new MalformedPayloadException(MalformedPayloadException.Reason.INVALID_JSON_SHAPE,
                         "Decrypted identity has an invalid shape");
             }
@@ -76,6 +99,16 @@ public class SecurePayloadService {
         } catch (JsonProcessingException exception) {
             throw new MalformedPayloadException(MalformedPayloadException.Reason.INVALID_JSON,
                     "Decrypted payload is not valid JSON", exception);
+        }
+    }
+
+    private String requestHash(String encryptedData) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(encryptedData.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 }
