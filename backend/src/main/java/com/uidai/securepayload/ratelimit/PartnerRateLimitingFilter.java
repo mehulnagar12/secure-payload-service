@@ -19,13 +19,14 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Rejects partner requests over the configured fixed-window limit before the
+ * Rejects partner requests over the configured token-bucket limit before the
  * controller and cryptographic service are invoked.
  */
 @Component
 public class PartnerRateLimitingFilter extends OncePerRequestFilter {
     private static final String SECURE_PAYLOAD_PATH = "/api/v1/sandbox/secure-payload";
     private static final int TOO_MANY_REQUESTS_STATUS = 429;
+    private static final int MAX_REQUEST_BODY_BYTES = 32 * 1024;
     private static final String FRONTEND_ORIGIN = "http://localhost:5173";
 
     private final ObjectMapper objectMapper;
@@ -60,10 +61,26 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
-        CachedBodyRequest cachedRequest = new CachedBodyRequest(request);
+        CachedBodyRequest cachedRequest;
+        try {
+            cachedRequest = new CachedBodyRequest(request);
+        } catch (RequestTooLargeException exception) {
+            response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write("{\"code\":\"REQUEST_TOO_LARGE\",\"message\":\"Request body is too large\"}");
+            return;
+        }
         String partnerId = extractPartnerId(cachedRequest.getCachedBody());
         if (partnerId != null) {
-            PartnerRateLimiter.RateLimitDecision decision = rateLimiter.tryAcquire(partnerId);
+            PartnerRateLimiter.RateLimitDecision decision;
+            try {
+                decision = rateLimiter.tryAcquire(partnerId);
+            } catch (RuntimeException exception) {
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.getWriter().write("{\"code\":\"RATE_LIMITER_UNAVAILABLE\",\"message\":\"Rate limiter is unavailable\"}");
+                return;
+            }
             if (!decision.allowed()) {
                 reject(response, decision);
                 return;
@@ -101,9 +118,15 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
     private static final class CachedBodyRequest extends HttpServletRequestWrapper {
         private final byte[] body;
 
-        private CachedBodyRequest(HttpServletRequest request) throws IOException {
+        private CachedBodyRequest(HttpServletRequest request) throws IOException, RequestTooLargeException {
             super(request);
-            body = request.getInputStream().readAllBytes();
+            if (request.getContentLengthLong() > MAX_REQUEST_BODY_BYTES) {
+                throw new RequestTooLargeException();
+            }
+            body = request.getInputStream().readNBytes(MAX_REQUEST_BODY_BYTES + 1);
+            if (body.length > MAX_REQUEST_BODY_BYTES) {
+                throw new RequestTooLargeException();
+            }
         }
 
         private byte[] getCachedBody() {
@@ -121,4 +144,6 @@ public class PartnerRateLimitingFilter extends OncePerRequestFilter {
             };
         }
     }
+
+    private static final class RequestTooLargeException extends Exception {}
 }

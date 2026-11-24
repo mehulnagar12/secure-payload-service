@@ -2,15 +2,12 @@ package com.uidai.securepayload.ratelimit;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for the partner fixed-window rate-limit algorithm.
+ * Unit tests for the partner token-bucket rate-limit algorithm.
  */
 class PartnerRateLimiterTest {
     /**
@@ -28,7 +25,7 @@ class PartnerRateLimiterTest {
 
         assertThat(rejected.allowed()).isFalse();
         assertThat(rejected.remaining()).isZero();
-        assertThat(rejected.retryAfterSeconds()).isEqualTo(1);
+        assertThat(rejected.retryAfterSeconds()).isGreaterThanOrEqualTo(1);
     }
 
     /**
@@ -73,28 +70,5 @@ class PartnerRateLimiterTest {
         }
     }
 
-    private static final class TestCache implements DistributedRateLimitCache {
-        private final Map<String, Long> values = new ConcurrentHashMap<>();
-
-        @Override
-        public String get(String key) {
-            Long value = values.get(key);
-            return value == null ? null : Long.toString(value);
-        }
-
-        @Override
-        public void set(String key, String value, Duration ttl) {
-            values.put(key, Long.parseLong(value));
-        }
-
-        @Override
-        public boolean setIfAbsent(String key, String value, Duration ttl) {
-            return values.putIfAbsent(key, Long.parseLong(value)) == null;
-        }
-
-        @Override
-        public long increment(String key) {
-            return values.merge(key, 1L, Long::sum);
-        }
-    }
+    private static final class TestCache extends MockDistributedRateLimitCache {}
 }

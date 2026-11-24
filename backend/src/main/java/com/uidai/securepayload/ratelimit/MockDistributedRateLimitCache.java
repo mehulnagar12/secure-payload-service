@@ -3,86 +3,44 @@ package com.uidai.securepayload.ratelimit;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Exercise-only cache adapter that models the required shared-cache operations.
  *
- * <p>This implementation is process-local and must be replaced by an actual
- * Redis adapter before deploying multiple application replicas. The interface
- * and atomic increment contract are intentionally kept separate from the
- * limiter algorithm.</p>
+ * <p>This implementation is process-local and must be replaced by a Redis
+ * adapter before deploying multiple application replicas. The single operation
+ * in the interface is intentionally atomic so a real adapter can implement it
+ * with one Lua script or equivalent server-side transaction.</p>
  */
 @Component
 public class MockDistributedRateLimitCache implements DistributedRateLimitCache {
-    private final ConcurrentHashMap<String, Entry> values = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> values = new HashMap<>();
 
-    /**
-     * Returns a non-expired value from the exercise cache.
-     *
-     * @param key cache key
-     * @return value or {@code null} when absent/expired
-     */
     @Override
-    public String get(String key) {
-        Entry entry = values.get(key);
-        if (entry == null || entry.expiresAt().isBefore(Instant.now())) {
-            values.remove(key, entry);
-            return null;
+    public synchronized RateLimitResult tryConsume(String key, long capacity, Duration refillPeriod) {
+        long now = System.nanoTime();
+        Bucket bucket = values.computeIfAbsent(key, ignored -> new Bucket(capacity, now));
+        double refilled = Math.min(capacity, bucket.tokens +
+                (now - bucket.lastRefillNanos) / 1_000_000_000d * capacity / refillPeriod.toSeconds());
+        long wholeTokens = (long) refilled;
+        boolean allowed = wholeTokens > 0;
+        double remainingTokens = allowed ? refilled - 1 : refilled;
+        bucket.tokens = remainingTokens;
+        bucket.lastRefillNanos = now;
+        long retryAfter = allowed ? 0 : Math.max(1,
+                (long) Math.ceil((1 - refilled) * refillPeriod.toSeconds() / capacity));
+        return new RateLimitResult(allowed, Math.max(0, (long) Math.floor(remainingTokens)), retryAfter);
+    }
+
+    private static final class Bucket {
+        private double tokens;
+        private long lastRefillNanos;
+
+        private Bucket(long capacity, long now) {
+            tokens = capacity;
+            lastRefillNanos = now;
         }
-        return entry.value();
     }
-
-    /**
-     * Stores a value and expiration time.
-     *
-     * @param key cache key
-     * @param value value to store
-     * @param ttl time-to-live
-     */
-    @Override
-    public void set(String key, String value, Duration ttl) {
-        values.put(key, new Entry(value, Instant.now().plus(ttl)));
-    }
-
-    /**
-     * Atomically initializes a key without overwriting an existing counter.
-     *
-     * @param key cache key
-     * @param value initial value
-     * @param ttl time-to-live
-     * @return whether the value was inserted
-     */
-    @Override
-    public boolean setIfAbsent(String key, String value, Duration ttl) {
-        final boolean[] inserted = {false};
-        values.compute(key, (ignored, current) -> {
-            if (current == null || current.expiresAt().isBefore(Instant.now())) {
-                inserted[0] = true;
-                return new Entry(value, Instant.now().plus(ttl));
-            }
-            return current;
-        });
-        return inserted[0];
-    }
-
-    /**
-     * Atomically increments a non-expired numeric entry.
-     *
-     * @param key cache key
-     * @return incremented numeric value
-     */
-    @Override
-    public long increment(String key) {
-        Entry updated = values.compute(key, (ignored, current) -> {
-            if (current == null || current.expiresAt().isBefore(Instant.now())) {
-                return new Entry("1", Instant.now().plusSeconds(2));
-            }
-            return new Entry(Long.toString(Long.parseLong(current.value()) + 1), current.expiresAt());
-        });
-        return Long.parseLong(updated.value());
-    }
-
-    private record Entry(String value, Instant expiresAt) {}
 }

@@ -6,22 +6,19 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Base64;
 
 /**
- * Fixed-window distributed rate limiter keyed by partner identity.
+ * Token-bucket rate limiter keyed by partner identity.
  *
- * <p>Each UTC epoch-second gets a separate cache counter. The first request
- * gives the counter a short expiry; subsequent requests atomically increment
- * it. This permits at most ten requests for a partner in a one-second window
- * across all application instances using the same cache.</p>
+ * <p>The cache operation must be atomic across application instances. The
+ * exercise cache models that contract locally; production should use Redis or
+ * an equivalent shared cache.</p>
  */
 @Component
 public class PartnerRateLimiter {
     private static final long MAX_REQUESTS_PER_WINDOW = 10;
-    private static final Duration WINDOW = Duration.ofSeconds(1);
-    private static final Duration CACHE_TTL = Duration.ofSeconds(2);
+    private static final Duration REFILL_PERIOD = Duration.ofSeconds(1);
 
     private final DistributedRateLimitCache cache;
 
@@ -41,16 +38,10 @@ public class PartnerRateLimiter {
      * @return decision containing allowance and retry metadata
      */
     public RateLimitDecision tryAcquire(String partnerId) {
-        long windowStart = Instant.now().getEpochSecond();
-        String key = "secure-payload:rate-limit:" + hashPartnerId(partnerId) + ":" + windowStart;
-        if (cache.get(key) == null) {
-            cache.setIfAbsent(key, "0", CACHE_TTL);
-        }
-        long count = cache.increment(key);
-        boolean allowed = count <= MAX_REQUESTS_PER_WINDOW;
-        long remaining = Math.max(0, MAX_REQUESTS_PER_WINDOW - count);
-        long retryAfterSeconds = allowed ? 0 : Math.max(1, WINDOW.getSeconds());
-        return new RateLimitDecision(allowed, remaining, retryAfterSeconds);
+        String key = "secure-payload:rate-limit:" + hashPartnerId(partnerId);
+        DistributedRateLimitCache.RateLimitResult result =
+                cache.tryConsume(key, MAX_REQUESTS_PER_WINDOW, REFILL_PERIOD);
+        return new RateLimitDecision(result.allowed(), result.remaining(), result.retryAfterSeconds());
     }
 
     private String hashPartnerId(String partnerId) {

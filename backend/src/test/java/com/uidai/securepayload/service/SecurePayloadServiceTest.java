@@ -29,7 +29,8 @@ class SecurePayloadServiceTest {
      * Verifies that a valid identity is published with a generated transaction ID.
      */
     void publishesVerifiedIdentityWithTransactionId() {
-        when(decryptor.decrypt("ciphertext")).thenReturn("{\"name\":\"Ada\"}");
+        when(decryptor.decrypt("ciphertext")).thenReturn(
+                "{\"name\":\"Ada\",\"aadhaar_number\":\"000000000000\",\"device_id\":\"device-1\"}");
 
         UUID transactionId = service.process(new SecurePayloadRequest("ciphertext", "partner-1"));
 

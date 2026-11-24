@@ -62,9 +62,15 @@ public class SecurePayloadService {
     private JsonNode parseIdentity(String plaintext) {
         try {
             JsonNode identity = objectMapper.readTree(plaintext);
-            if (identity == null || !identity.isObject() || identity.isEmpty()) {
+            if (identity == null || !identity.isObject() || identity.isEmpty()
+                    || !identity.hasNonNull("name")
+                    || !identity.hasNonNull("aadhaar_number")
+                    || !identity.hasNonNull("device_id")
+                    || !identity.get("name").isTextual()
+                    || !identity.get("aadhaar_number").isTextual()
+                    || !identity.get("device_id").isTextual()) {
                 throw new MalformedPayloadException(MalformedPayloadException.Reason.INVALID_JSON_SHAPE,
-                        "Decrypted identity must be a non-empty JSON object");
+                        "Decrypted identity has an invalid shape");
             }
             return identity;
         } catch (JsonProcessingException exception) {
