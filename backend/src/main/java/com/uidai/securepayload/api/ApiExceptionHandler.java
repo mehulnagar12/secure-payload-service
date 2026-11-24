@@ -21,8 +21,7 @@ import java.util.UUID;
  */
 public class ApiExceptionHandler {
     @ExceptionHandler({PayloadDecryptionException.class, MalformedPayloadException.class,
-            MethodArgumentNotValidException.class, HandlerMethodValidationException.class,
-            HttpMessageNotReadableException.class})
+            MethodArgumentNotValidException.class, HandlerMethodValidationException.class})
     /**
      * Handles invalid request data, decryption failures, and malformed plaintext.
      *
@@ -31,7 +30,20 @@ public class ApiExceptionHandler {
      * @return HTTP 400 response with a stable application error code
      */
     ResponseEntity<ApiError> badRequest(Exception exception, HttpServletRequest request) {
-        return response(HttpStatus.BAD_REQUEST, "INVALID_SECURE_PAYLOAD", messageFor(exception), request);
+        return response(HttpStatus.BAD_REQUEST, codeFor(exception), messageFor(exception), request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    /**
+     * Handles malformed JSON or an unreadable request body.
+     *
+     * @param exception request parsing failure
+     * @param request current servlet request
+     * @return HTTP 400 response with a request-format error code
+     */
+    ResponseEntity<ApiError> malformedRequest(HttpMessageNotReadableException exception,
+                                              HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", "Request body must be valid JSON", request);
     }
 
     @ExceptionHandler(EventPublicationException.class)
@@ -87,5 +99,28 @@ public class ApiExceptionHandler {
                     .findFirst().map(error -> error.getDefaultMessage()).orElse("Request is invalid");
         }
         return exception.getMessage();
+    }
+
+    /**
+     * Maps known validation and processing reasons to stable client-facing codes.
+     *
+     * @param exception handled exception
+     * @return stable application error code
+     */
+    private String codeFor(Exception exception) {
+        if (exception instanceof PayloadDecryptionException decryption) {
+            return switch (decryption.reason()) {
+                case INVALID_BASE64 -> "INVALID_CIPHERTEXT_BASE64";
+                case INVALID_CIPHERTEXT_SIZE -> "INVALID_CIPHERTEXT_SIZE";
+                case DECRYPTION_FAILED -> "DECRYPTION_FAILED";
+            };
+        }
+        if (exception instanceof MalformedPayloadException malformed) {
+            return switch (malformed.reason()) {
+                case INVALID_JSON -> "MALFORMED_DECRYPTED_JSON";
+                case INVALID_JSON_SHAPE -> "INVALID_IDENTITY_PAYLOAD";
+            };
+        }
+        return "INVALID_REQUEST";
     }
 }

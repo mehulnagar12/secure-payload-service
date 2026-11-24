@@ -55,18 +55,21 @@ public class RsaPayloadDecryptor implements PayloadDecryptor {
         try {
             byte[] ciphertext = Base64.getDecoder().decode(encryptedData);
             if (ciphertext.length != RSA_2048_CIPHERTEXT_BYTES) {
-                throw new PayloadDecryptionException("Encrypted payload has an invalid RSA ciphertext size");
+                throw new PayloadDecryptionException(PayloadDecryptionException.Reason.INVALID_CIPHERTEXT_SIZE,
+                        "Encrypted payload has an invalid RSA ciphertext size");
             }
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, privateKey,
                     new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT));
             return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException exception) {
-            throw new PayloadDecryptionException("Encrypted payload is not valid Base64", exception);
+            throw new PayloadDecryptionException(PayloadDecryptionException.Reason.INVALID_BASE64,
+                    "Encrypted payload is not valid Base64", exception);
         } catch (PayloadDecryptionException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new PayloadDecryptionException("Encrypted payload could not be decrypted", exception);
+            throw new PayloadDecryptionException(PayloadDecryptionException.Reason.DECRYPTION_FAILED,
+                    "Encrypted payload could not be decrypted", exception);
         }
     }
 }

@@ -71,7 +71,7 @@ All errors use this response structure:
 {
   "timestamp": "2026-11-23T17:49:01.646132Z",
   "status": 400,
-  "code": "INVALID_SECURE_PAYLOAD",
+  "code": "DECRYPTION_FAILED",
   "message": "Encrypted payload is not valid Base64",
   "path": "/api/v1/sandbox/secure-payload",
   "request_id": "6c4d12bd-9399-4e41-9591-bd3ffe11d452"
@@ -80,14 +80,13 @@ All errors use this response structure:
 
 | HTTP status | Error code | Scenario | Message examples |
 | --- | --- | --- | --- |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Missing or blank `encrypted_data` | `encrypted_data is required` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Missing or blank `partner_id` | `partner_id is required` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Malformed request JSON or wrong JSON shape | `Request body could not be read` or framework validation details |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | `encrypted_data` is not valid Base64 | `Encrypted payload is not valid Base64` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Ciphertext is not exactly 256 bytes for the mock RSA-2048 key | `Encrypted payload has an invalid RSA ciphertext size` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Ciphertext cannot be decrypted, is tampered with, or uses the wrong key | `Encrypted payload could not be decrypted` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Decrypted content is malformed JSON | `Decrypted payload is not valid JSON` |
-| `400 Bad Request` | `INVALID_SECURE_PAYLOAD` | Decrypted JSON is empty, scalar, or an array instead of an object | `Decrypted identity must be a non-empty JSON object` |
+| `400 Bad Request` | `INVALID_REQUEST` | Missing or blank `encrypted_data` or `partner_id` | Field-specific validation message |
+| `400 Bad Request` | `MALFORMED_REQUEST` | Request body is not valid JSON | `Request body must be valid JSON` |
+| `400 Bad Request` | `INVALID_CIPHERTEXT_BASE64` | `encrypted_data` is not valid Base64 | `Encrypted payload is not valid Base64` |
+| `400 Bad Request` | `INVALID_CIPHERTEXT_SIZE` | Ciphertext is not exactly 256 bytes for the mock RSA-2048 key | `Encrypted payload has an invalid RSA ciphertext size` |
+| `400 Bad Request` | `DECRYPTION_FAILED` | Ciphertext cannot be decrypted, is tampered with, or uses the wrong key | `Encrypted payload could not be decrypted` |
+| `400 Bad Request` | `MALFORMED_DECRYPTED_JSON` | Decrypted content is malformed JSON | `Decrypted payload is not valid JSON` |
+| `400 Bad Request` | `INVALID_IDENTITY_PAYLOAD` | Decrypted JSON is empty, scalar, or an array instead of an object | `Decrypted identity must be a non-empty JSON object` |
 | `503 Service Unavailable` | `EVENT_PUBLICATION_FAILED` | Kafka is unavailable, times out, or rejects the event | `The secure payload could not be published` |
 | `500 Internal Server Error` | `INTERNAL_ERROR` | Unexpected server-side failure | `The request could not be processed` |
 

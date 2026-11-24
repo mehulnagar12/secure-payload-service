@@ -189,7 +189,7 @@ All normal API errors use the following structure:
 {
   "timestamp": "2026-11-24T00:00:00Z",
   "status": 400,
-  "code": "INVALID_SECURE_PAYLOAD",
+  "code": "DECRYPTION_FAILED",
   "message": "Encrypted payload is not valid Base64",
   "path": "/api/v1/sandbox/secure-payload",
   "request_id": "6c4d12bd-9399-4e41-9591-bd3ffe11d452"
@@ -198,13 +198,13 @@ All normal API errors use the following structure:
 
 | Status | Code | Scenario |
 | --- | --- | --- |
-| `400` | `INVALID_SECURE_PAYLOAD` | Missing or blank `encrypted_data` or `partner_id` |
-| `400` | `INVALID_SECURE_PAYLOAD` | Malformed request JSON |
-| `400` | `INVALID_SECURE_PAYLOAD` | Invalid Base64 ciphertext |
-| `400` | `INVALID_SECURE_PAYLOAD` | Ciphertext is not 256 bytes for the mock RSA-2048 key |
-| `400` | `INVALID_SECURE_PAYLOAD` | Decryption fails, payload is tampered with, or the wrong key is used |
-| `400` | `INVALID_SECURE_PAYLOAD` | Decrypted content is invalid JSON |
-| `400` | `INVALID_SECURE_PAYLOAD` | Decrypted JSON is empty, scalar, or an array |
+| `400` | `INVALID_REQUEST` | Missing or blank `encrypted_data` or `partner_id` |
+| `400` | `MALFORMED_REQUEST` | Request body is not valid JSON |
+| `400` | `INVALID_CIPHERTEXT_BASE64` | Invalid Base64 ciphertext |
+| `400` | `INVALID_CIPHERTEXT_SIZE` | Ciphertext is not 256 bytes for the mock RSA-2048 key |
+| `400` | `DECRYPTION_FAILED` | Decryption fails, payload is tampered with, or the wrong key is used |
+| `400` | `MALFORMED_DECRYPTED_JSON` | Decrypted content is invalid JSON |
+| `400` | `INVALID_IDENTITY_PAYLOAD` | Decrypted JSON is empty, scalar, or an array |
 | `429` | `RATE_LIMIT_EXCEEDED` | Partner has exceeded 10 requests in the current one-second window |
 | `503` | `EVENT_PUBLICATION_FAILED` | Kafka is unavailable, rejects the message, or does not acknowledge within five seconds |
 | `500` | `INTERNAL_ERROR` | Unexpected server-side failure |

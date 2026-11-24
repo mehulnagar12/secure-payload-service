@@ -63,11 +63,13 @@ public class SecurePayloadService {
         try {
             JsonNode identity = objectMapper.readTree(plaintext);
             if (identity == null || !identity.isObject() || identity.isEmpty()) {
-                throw new MalformedPayloadException("Decrypted identity must be a non-empty JSON object");
+                throw new MalformedPayloadException(MalformedPayloadException.Reason.INVALID_JSON_SHAPE,
+                        "Decrypted identity must be a non-empty JSON object");
             }
             return identity;
         } catch (JsonProcessingException exception) {
-            throw new MalformedPayloadException("Decrypted payload is not valid JSON", exception);
+            throw new MalformedPayloadException(MalformedPayloadException.Reason.INVALID_JSON,
+                    "Decrypted payload is not valid JSON", exception);
         }
     }
 }
